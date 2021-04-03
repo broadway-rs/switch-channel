@@ -1,7 +1,7 @@
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use async_std::channel::Receiver;
-use super::{Switcher, PERMITTED};
-use crate::err::recv_err::{RecvError, TryRecvError};
+use super::{PERMITTED};
+use crate::err::recv::{RecvError, TryRecvError};
 
 #[derive(Clone)]
 pub struct SwitchReceiver<T, const N: usize, const P: bool>{
@@ -16,7 +16,7 @@ impl<T, const N: usize, const P: bool> SwitchReceiver<T, N, P>{
     }
 
     /// receive from the activate channel.
-    pub async fn rev(&'_ self) -> Result<T, RecvError>{
+    pub async fn recv(&'_ self) -> Result<T, RecvError>{
         Ok(self.receivers[self.count.load(Ordering::SeqCst) % N].recv().await?)
     }
 
@@ -65,41 +65,112 @@ impl<T, const N: usize, const P: bool> SwitchReceiver<T, N, P>{
     }
 } 
 
-impl<T, const N: usize> Switcher for SwitchReceiver<T, N, PERMITTED>{
-    fn switch_add(&self, val: usize) -> usize{
-        self.count.fetch_add(val, Ordering::SeqCst)
+#[derive(Clone)]
+pub struct SwitchReceiverGuard<'a, T>{
+    receiver: &'a Receiver<T>
+}
+
+impl<'a, T> SwitchReceiverGuard<'a, T>{
+    /// Try to receive from the activate channel.
+    pub fn try_recv(&self) -> Result<T, TryRecvError>{
+        Ok(self.receiver.try_recv()?)
     }
 
-    fn switch_and(&self, val: usize) -> usize{
-        self.count.fetch_and(val, Ordering::SeqCst)
+    /// receive from the activate channel.
+    pub async fn recv(&'_ self) -> Result<T, RecvError>{
+        Ok(self.receiver.recv().await?)
     }
 
-    fn switch_max(&self, val: usize) -> usize{
-        self.count.fetch_max(val, Ordering::SeqCst)
+    /// Checks if all the channels have been closed.
+    pub fn is_closed(&self) -> bool{
+        self.receiver.is_closed()
     }
 
-    fn switch_min(&self, val: usize) -> usize{
-        self.count.fetch_min(val, Ordering::SeqCst)
+    /// Check if the activate channel is empty.
+    pub fn is_empty(&self) -> bool{
+        self.receiver.is_empty()
     }
 
-    fn switch_nand(&self, val: usize) -> usize{
-        self.count.fetch_nand(val, Ordering::SeqCst)
+    /// Check if the activate channel is full, unbounded channels are never full.
+    pub fn is_full(&self) -> bool{
+        self.receiver.is_full()
     }
 
-    fn switch_or(&self, val: usize) -> usize{
-        self.count.fetch_or(val, Ordering::SeqCst)
+    pub fn capacity(&self) -> Option<usize>{
+        // These are only allowed be constructed with uniform capacity,
+        // so you can just get the capacity from any instance.
+        self.receiver.capacity()
     }
 
-    fn switch_sub(&self, val: usize) -> usize{
-        self.count.fetch_sub(val, Ordering::SeqCst)
+    /// Returns the number of senders for the channel.
+    pub fn sender_count(&self) -> usize{
+        self.receiver.sender_count()
     }
 
-    fn switch_update<F>(&self, f: F) -> Result<usize, usize>
-        where F: FnMut(usize) -> Option<usize>{
-        self.count.fetch_update(Ordering::SeqCst, Ordering::SeqCst, f)
+    /// Returns the number of receivers for the channel.
+    pub fn receiver_count(&self) -> usize{
+        self.receiver.receiver_count()
+    }
+} 
+
+pub trait ReceiveSwitcher<T>{
+    fn switch_add(&self, val: usize) -> SwitchReceiverGuard<'_, T>;
+    fn switch_and(&self, val: usize) -> SwitchReceiverGuard<'_, T>;
+    fn switch_max(&self, val: usize) -> SwitchReceiverGuard<'_, T>;
+    fn switch_min(&self, val: usize) -> SwitchReceiverGuard<'_, T>;
+    fn switch_nand(&self, val: usize) -> SwitchReceiverGuard<'_, T>;
+    fn switch_or(&self, val: usize) -> SwitchReceiverGuard<'_, T>;
+    fn switch_sub(&self, val: usize) -> SwitchReceiverGuard<'_, T>;
+    fn switch_xor(&self, val: usize) -> SwitchReceiverGuard<'_, T>;
+}
+
+
+impl<T, const N: usize> ReceiveSwitcher<T> for SwitchReceiver<T, N, PERMITTED>{
+    fn switch_add(&self, val: usize) -> SwitchReceiverGuard<'_, T>{
+        SwitchReceiverGuard{
+            receiver: &self.receivers[self.count.fetch_add(val, Ordering::SeqCst)]
+        }
     }
 
-    fn switch_xor(&self, val: usize) -> usize{
-        self.count.fetch_xor(val, Ordering::SeqCst)
+    fn switch_and(&self, val: usize) -> SwitchReceiverGuard<'_, T>{
+        SwitchReceiverGuard{
+            receiver: &self.receivers[self.count.fetch_and(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_max(&self, val: usize) -> SwitchReceiverGuard<'_, T>{
+        SwitchReceiverGuard{
+            receiver: &self.receivers[self.count.fetch_max(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_min(&self, val: usize) -> SwitchReceiverGuard<'_, T>{
+        SwitchReceiverGuard{
+            receiver: &self.receivers[self.count.fetch_min(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_nand(&self, val: usize) -> SwitchReceiverGuard<'_, T>{
+        SwitchReceiverGuard{
+            receiver: &self.receivers[self.count.fetch_nand(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_or(&self, val: usize) -> SwitchReceiverGuard<'_, T>{
+        SwitchReceiverGuard{
+            receiver: &self.receivers[self.count.fetch_or(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_sub(&self, val: usize) -> SwitchReceiverGuard<'_, T>{
+        SwitchReceiverGuard{
+            receiver: &self.receivers[self.count.fetch_sub(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_xor(&self, val: usize) -> SwitchReceiverGuard<'_, T>{
+        SwitchReceiverGuard{
+            receiver: &self.receivers[self.count.fetch_xor(val, Ordering::SeqCst)]
+        }
     }
 }

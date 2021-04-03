@@ -1,7 +1,7 @@
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use async_std::channel::Sender;
-use super::{Switcher, PERMITTED};
-use crate::err::send_err::{SendError, TrySendError};
+use super::{PERMITTED};
+use crate::err::send::{SendError, TrySendError};
 
 #[derive(Clone)]
 pub struct SwitchSender<T, const N: usize, const P: bool>{
@@ -57,41 +57,104 @@ impl<T, const N: usize, const P: bool> SwitchSender<T, N, P>{
     }
 }
 
-impl<T, const N: usize> Switcher for SwitchSender<T, N, PERMITTED>{
-    fn switch_add(&self, val: usize) -> usize{
-        self.count.fetch_add(val, Ordering::SeqCst)
+#[derive(Clone)]
+pub struct SwitchSenderGuard<'a, T>{
+    sender: &'a Sender<T>
+}
+
+impl<'a, T> SwitchSenderGuard<'a, T>{
+    pub fn try_send(&self, msg: T) -> Result<(), TrySendError<T>>{
+        Ok(self.sender.try_send(msg)?)
     }
 
-    fn switch_and(&self, val: usize) -> usize{
-        self.count.fetch_and(val, Ordering::SeqCst)
+    pub async fn send(&'_ self, msg: T) -> Result<(), SendError<T>>{
+        Ok(self.sender.send(msg).await?)
     }
 
-    fn switch_max(&self, val: usize) -> usize{
-        self.count.fetch_max(val, Ordering::SeqCst)
+    pub fn is_closed(&self) -> bool{
+        self.sender.is_closed()
     }
 
-    fn switch_min(&self, val: usize) -> usize{
-        self.count.fetch_min(val, Ordering::SeqCst)
+    pub fn is_full(&self) -> bool{
+        self.sender.is_full()
     }
 
-    fn switch_nand(&self, val: usize) -> usize{
-        self.count.fetch_nand(val, Ordering::SeqCst)
+    pub fn len(&self) -> usize{
+        self.sender.len()
     }
 
-    fn switch_or(&self, val: usize) -> usize{
-        self.count.fetch_or(val, Ordering::SeqCst)
+    pub fn capacity(&self) -> Option<usize>{
+        self.sender.capacity()
     }
 
-    fn switch_sub(&self, val: usize) -> usize{
-        self.count.fetch_sub(val, Ordering::SeqCst)
+    /// Returns the number of senders for the channel.
+    pub fn sender_count(&self) -> usize{
+        self.sender.sender_count()
     }
 
-    fn switch_update<F>(&self, f: F) -> Result<usize, usize>
-        where F: FnMut(usize) -> Option<usize>{
-        self.count.fetch_update(Ordering::SeqCst, Ordering::SeqCst, f)
+    /// Returns the number of receivers for the channel.
+    pub fn receiver_count(&self) -> usize{
+        self.sender.receiver_count()
+    }
+}
+
+pub trait SendSwitcher<T>{
+    fn switch_add(&self, val: usize) -> SwitchSenderGuard<'_, T>;
+    fn switch_max(&self, val: usize) -> SwitchSenderGuard<'_, T>;
+    fn switch_and(&self, val: usize) -> SwitchSenderGuard<'_, T>;
+    fn switch_min(&self, val: usize) -> SwitchSenderGuard<'_, T>;
+    fn switch_nand(&self, val: usize) -> SwitchSenderGuard<'_, T>;
+    fn switch_or(&self, val: usize) -> SwitchSenderGuard<'_, T>;
+    fn switch_sub(&self, val: usize) -> SwitchSenderGuard<'_, T>;
+    fn switch_xor(&self, val: usize) -> SwitchSenderGuard<'_, T>;
+}
+
+impl<T, const N: usize> SendSwitcher<T> for SwitchSender<T, N, PERMITTED>{
+    fn switch_add(&self, val: usize) -> SwitchSenderGuard<'_, T>{
+        SwitchSenderGuard{
+            sender: &self.senders[self.count.fetch_add(val, Ordering::SeqCst)]
+        }
     }
 
-    fn switch_xor(&self, val: usize) -> usize{
-        self.count.fetch_xor(val, Ordering::SeqCst)
+    fn switch_and(&self, val: usize) -> SwitchSenderGuard<'_, T>{
+        SwitchSenderGuard{
+            sender: &self.senders[self.count.fetch_and(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_max(&self, val: usize) -> SwitchSenderGuard<'_, T>{
+        SwitchSenderGuard{
+            sender: &self.senders[self.count.fetch_max(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_min(&self, val: usize) -> SwitchSenderGuard<'_, T>{
+        SwitchSenderGuard{
+            sender: &self.senders[self.count.fetch_min(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_nand(&self, val: usize) -> SwitchSenderGuard<'_, T>{
+        SwitchSenderGuard{
+            sender: &self.senders[self.count.fetch_nand(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_or(&self, val: usize) -> SwitchSenderGuard<'_, T>{
+        SwitchSenderGuard{
+            sender: &self.senders[self.count.fetch_or(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_sub(&self, val: usize) -> SwitchSenderGuard<'_, T>{
+        SwitchSenderGuard{
+            sender: &self.senders[self.count.fetch_sub(val, Ordering::SeqCst)]
+        }
+    }
+
+    fn switch_xor(&self, val: usize) -> SwitchSenderGuard<'_, T>{
+        SwitchSenderGuard{
+            sender: &self.senders[self.count.fetch_xor(val, Ordering::SeqCst)]
+        }
     }
 }
