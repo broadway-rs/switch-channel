@@ -63,6 +63,12 @@ impl<T, const N: usize, const P: bool> SwitchReceiver<T, N, P>{
     pub fn receiver_count(&self) -> usize{
         self.receivers[0].receiver_count()
     }
+
+    pub fn get_guard(&self) -> SwitchReceiverGuard<'_, T>{
+        SwitchReceiverGuard{
+            receiver: &self.receivers[self.count.load(Ordering::SeqCst) % N]
+        }
+    }
 } 
 
 #[derive(Clone)]
@@ -112,6 +118,29 @@ impl<'a, T> SwitchReceiverGuard<'a, T>{
         self.receiver.receiver_count()
     }
 } 
+
+impl<'a, T> std::iter::IntoIterator for SwitchReceiverGuard<'a, T>{
+    type Item = T;
+    type IntoIter = SwitchReceiverGuardIterator<'a, T>;
+    
+    fn into_iter(self) -> <Self as std::iter::IntoIterator>::IntoIter { 
+        SwitchReceiverGuardIterator{
+            receiver: self.receiver
+        }
+    }
+}
+
+pub struct SwitchReceiverGuardIterator<'a, T>{
+    receiver: &'a Receiver<T>,
+}
+
+impl<'a, T> std::iter::Iterator for SwitchReceiverGuardIterator<'a, T>{
+
+    type Item = T;
+    fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item> { 
+        self.receiver.try_recv().ok()
+    }
+}
 
 pub trait ReceiveSwitcher<T>{
     fn switch_add(&self, val: usize) -> SwitchReceiverGuard<'_, T>;

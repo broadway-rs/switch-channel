@@ -47,10 +47,12 @@ pub fn unbounded<T, const N: usize, const S: bool, const P: bool>() -> (SwitchSe
     )
 }
 
+
 #[cfg(test)]
 mod tests{
     use crate::*;
-    use futures::{select, future::FutureExt};
+    use futures::{future, FutureExt};
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
     use async_std::task;
 
     #[test]
@@ -104,43 +106,89 @@ mod tests{
         Ok(())
     }
 
-    #[async_std::test]
-    async fn simple_use_case() -> Result<(), Box<dyn std::error::Error>>{
-        let (add_sender, add_receiver) = unbounded::<i32, 2, false, true>();
-        let (sub_sender, sub_receiver) = unbounded::<i32, 2, false, true>();
+    async fn add_switch_loop(value: &mut usize, add: Result<usize, err::recv::RecvError>, add_receiver: &SwitchReceiver<usize, 2, true>){
+        if let Ok(add) = add{
+            *value += add
+        }
+        while let Ok(add) = add_receiver.switch_xor(1).recv().await{
+            *value += add
+        }
+    }
+
+    async fn parallel_switch_loop(value: &AtomicUsize, para: Result<(), err::recv::RecvError>, para_receiver: &SwitchReceiver<(), 2, true>){
+        if let Ok(_) = para{
+            value.fetch_add(1, Ordering::SeqCst);
+        }
+        for _ in para_receiver
+            .switch_xor(1)
+            .into_iter(){
+                value.fetch_add(1, Ordering::SeqCst);
+            }
+    }
+
+    async fn parallel_use_case(add_target: usize, par_target: usize) -> Result<(), Box<dyn std::error::Error>>{
+        let (add_sender, add_receiver) = unbounded::<_, 2, false, true>();
+        let (para_sender, para_receiver) = unbounded::<_, 2, false, true>();
+
+        let add_target = 1000;
+        let par_target = 1000000;
 
         let handle = task::spawn(async move {
-            for i in 0..1000000{
+            for i in 0usize..add_target{
                 let _ = add_sender.send(1).await;
-                let _ =sub_sender.send(1).await;
             };
+            for i in 0usize..par_target{
+                let _ = para_sender.send(()).await;
+            }
             add_sender.close();
-            sub_sender.close();
+            para_sender.close();
         });
 
-        let mut value: i32 = 0;
+        let mut adder_value: usize = 0;
+        let mut para_adder_value = AtomicUsize::new(0);
 
-        while !add_receiver.is_closed() || !sub_receiver.is_closed() {
-            select!{
-                add_res = FutureExt::fuse(add_receiver.recv()) =>{
-                    value += add_res.unwrap();
-                    let receiver = add_receiver.switch_xor(1);
-                    while let Ok(add_res) = receiver.try_recv(){
-                        value += add_res;
+        let mut add_recv_fut = None;
+        let mut para_recv_fut = None;
+
+        loop {
+            if let None = add_recv_fut{
+                if !add_receiver.is_empty() || !add_receiver.is_closed(){
+                    add_recv_fut = Some(Box::pin(add_receiver.recv()));
+                }
+            }
+            if let None = para_recv_fut {
+                if !para_receiver.is_empty() || !para_receiver.is_closed(){
+                    para_recv_fut = Some(Box::pin(para_receiver.recv()));
+                }
+            }
+
+            let select_fut = match (add_recv_fut.take(), para_recv_fut.take()){
+                (Some(add_fut), Some(para_fut)) =>{
+                    match future::select(add_fut, para_fut).await{
+                        future::Either::Left((add, para_fut)) => {
+                            add_switch_loop(&mut adder_value, add, &add_receiver).await;
+                            para_recv_fut = Some(para_fut);
+                        },
+                        future::Either::Right((para, add_fut)) => {
+                            parallel_switch_loop(&para_adder_value, para, &para_receiver).await;
+                            add_recv_fut = Some(add_fut);
+                        },
                     }
                 },
-                sub_res = FutureExt::fuse(sub_receiver.recv()) =>{
-                    value -= sub_res.unwrap();
-                    let receiver = sub_receiver.switch_xor(1);
-                    while let Ok(sub_res) = receiver.try_recv(){
-                        value -= sub_res;
-                    }
-                }
+                (Some(add_fut), None) => add_switch_loop(&mut adder_value, add_fut.await, &add_receiver).await,
+                (None, Some(para_fut)) => parallel_switch_loop(&para_adder_value, para_fut.await, &para_receiver).await,
+                (None, None) => break,
             };
         };
 
         handle.await;
-        assert_eq!(value, 0);
+        assert_eq!(adder_value, add_target);
+        assert_eq!(para_adder_value.load(Ordering::SeqCst), par_target);
         Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_para_use_case() -> Result<(), Box<dyn std::error::Error>>{
+        parallel_use_case(1000, 1000000000).await
     }
 }
