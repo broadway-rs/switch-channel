@@ -98,6 +98,8 @@ impl<'a, T> SwitchSenderGuard<'a, T>{
     }
 }
 
+/// TODO: Replace this trait with a general Switcher trait with the output
+/// defined by a GAT (currently not possible)
 pub trait SendSwitcher<T>{
     fn switch_add(&self, val: usize) -> SwitchSenderGuard<'_, T>;
     fn switch_max(&self, val: usize) -> SwitchSenderGuard<'_, T>;

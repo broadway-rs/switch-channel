@@ -50,6 +50,8 @@ pub fn unbounded<T, const N: usize, const S: bool, const P: bool>() -> (SwitchSe
 #[cfg(test)]
 mod tests{
     use crate::*;
+    use futures::{select, future::FutureExt};
+    use async_std::task;
 
     #[test]
     fn constructors(){
@@ -99,6 +101,46 @@ mod tests{
         assert_eq!(20, receiver.switch_add(1).try_recv().ok().unwrap());
         // This recieves the 10 we originally sent
         assert_eq!(10, receiver.try_recv().ok().unwrap());
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn simple_use_case() -> Result<(), Box<dyn std::error::Error>>{
+        let (add_sender, add_receiver) = unbounded::<i32, 2, false, true>();
+        let (sub_sender, sub_receiver) = unbounded::<i32, 2, false, true>();
+
+        let handle = task::spawn(async move {
+            for i in 0..1000000{
+                let _ = add_sender.send(1).await;
+                let _ =sub_sender.send(1).await;
+            };
+            add_sender.close();
+            sub_sender.close();
+        });
+
+        let mut value: i32 = 0;
+
+        while !add_receiver.is_closed() || !sub_receiver.is_closed() {
+            select!{
+                add_res = FutureExt::fuse(add_receiver.recv()) =>{
+                    value += add_res.unwrap();
+                    let receiver = add_receiver.switch_xor(1);
+                    while let Ok(add_res) = receiver.try_recv(){
+                        value += add_res;
+                    }
+                },
+                sub_res = FutureExt::fuse(sub_receiver.recv()) =>{
+                    value -= sub_res.unwrap();
+                    let receiver = sub_receiver.switch_xor(1);
+                    while let Ok(sub_res) = receiver.try_recv(){
+                        value -= sub_res;
+                    }
+                }
+            };
+        };
+
+        handle.await;
+        assert_eq!(value, 0);
         Ok(())
     }
 }
