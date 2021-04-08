@@ -10,7 +10,7 @@ pub struct SwitchSender<T, const N: usize, const P: bool>{
 }
 
 impl<T, const N: usize, const P: bool> SwitchSender<T, N, P>{
-    pub async fn send(&'_ self, msg: T) -> Result<(), SendError<T>>{
+    pub fn send(&'_ self, msg: T) -> Result<(), SendError<T>>{
         Ok(self.senders[self.count.load(Ordering::SeqCst) % N].send(msg)?)
     }
 }
@@ -21,7 +21,7 @@ pub struct SwitchSenderGuard<'a, T>{
 }
 
 impl<'a, T> SwitchSenderGuard<'a, T>{
-    pub async fn send(&'_ self, msg: T) -> Result<(), SendError<T>>{
+    pub fn send(&'_ self, msg: T) -> Result<(), SendError<T>>{
         Ok(self.sender.send(msg)?)
     }
 }
