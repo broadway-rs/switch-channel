@@ -7,6 +7,7 @@ use std::sync::Arc;
 use core::iter::repeat_with;
 pub use switch_receiver::{SwitchReceiver, SwitchReceiverGuard, SwitchReceiverGuardIterator};
 pub use switch_sender::{SwitchSender, SwitchSenderGuard};
+pub use diswitchchannel::{dibounded, diunbounded, DiSwitchSender, DiSwitchReceiver};
 
 
 pub fn bounded<T, const N: usize, const S: bool, const P: bool>(cap: usize) -> (SwitchSender<T, N, S>, SwitchReceiver<T, N, P>){
