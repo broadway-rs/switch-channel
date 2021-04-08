@@ -1,10 +1,12 @@
 mod switch_receiver;
 mod switch_sender;
 mod switch_sync_sender;
+mod diswitchchannel;
 
 pub use switch_receiver::{SwitchReceiver, SwitchReceiverGuard, SwitchReceiverGuardIterator};
 pub use switch_sender::{SwitchSender, SwitchSenderGuard};
 pub use switch_sync_sender::{SwitchSyncSender, SwitchSyncSenderGuard};
+pub use diswitchchannel::{dibounded, diunbounded, DiSwitchSender, DiSwitchSyncSender, DiSwitchReceiver};
 
 use std::convert::TryInto;
 use core::sync::atomic::AtomicUsize;
