@@ -85,6 +85,20 @@
 //! ```
 
 pub mod err;
-mod async_switch_channel;
+mod async_switch_channels;
 
-pub use async_switch_channel::{SwitchSender, SwitchReceiver, SendSwitcher, ReceiveSwitcher, bounded, unbounded};
+pub use async_switch_channels::{SwitchSender, SwitchReceiver, bounded, unbounded};
+
+
+pub trait Switcher<'a, T>{
+    type Output;
+
+    fn switch_add(&'a self, val: usize) -> Self::Output;
+    fn switch_and(&'a self, val: usize) -> Self::Output;
+    fn switch_max(&'a self, val: usize) -> Self::Output;
+    fn switch_min(&'a self, val: usize) -> Self::Output;
+    fn switch_nand(&'a self, val: usize) -> Self::Output;
+    fn switch_or(&'a self, val: usize) -> Self::Output;
+    fn switch_sub(&'a self, val: usize) -> Self::Output;
+    fn switch_xor(&'a self, val: usize) -> Self::Output;
+}

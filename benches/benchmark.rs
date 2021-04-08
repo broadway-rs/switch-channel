@@ -165,5 +165,5 @@ fn seq_bench(c: &mut Criterion){
     });
 }
 
-criterion_group!(benches, par_bench, seq_bench);
+criterion_group!(benches, par_bench);
 criterion_main!(benches);
