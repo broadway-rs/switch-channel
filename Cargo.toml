@@ -7,7 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-std = "1.9.0"
+async-std = {version = "1.9.0", optional = true}
+crossbeam-channel = {version = "0.5.0", optional = true}
+
+[features]
+crossbeam = ["crossbeam-channel"]
+async_std = ["async-std"]
 
 [dev-dependencies]
 async-std = {version = "1.9.0", features = ["attributes"]}
@@ -18,3 +23,4 @@ criterion = {version = "0.3.4", features = ["async_std"]}
 [[bench]]
 name = "benchmark"
 harness = false
+features = ["async_std"]

@@ -77,18 +77,3 @@ impl<'a, T: 'static, const N: usize> Switcher<'a, T> for SwitchSender<T, N, PERM
         }
     }
 }
-
-impl<T> From<std::sync::mpsc::SendError<T>> for SendError<T>{
-    fn from(err: std::sync::mpsc::SendError<T>) -> Self { 
-        Self(err.0)
-    }
-}
-
-impl<T> From<std::sync::mpsc::TrySendError<T>> for TrySendError<T>{
-    fn from(err: std::sync::mpsc::TrySendError<T>) -> Self { 
-        match err{
-            std::sync::mpsc::TrySendError::Full(t) => Self::Full(t),
-            std::sync::mpsc::TrySendError::Disconnected(t) => Self::Closed(t),
-        }
-    }
-}
