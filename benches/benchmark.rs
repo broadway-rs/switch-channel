@@ -1,6 +1,6 @@
 use criterion::*;
 use criterion::async_executor::AsyncStdExecutor;
-use switch_channel::*;
+use switch_channel::{Switcher, err, async_channel::async_std::*};
 use futures::{future, FutureExt};
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use async_std::task;

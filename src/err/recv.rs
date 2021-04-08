@@ -22,23 +22,8 @@ impl TryRecvError {
     }
 }
 
-impl From<async_std::channel::TryRecvError> for TryRecvError{
-    fn from(err: async_std::channel::TryRecvError) -> Self { 
-        match err{
-            async_std::channel::TryRecvError::Empty => Self::Empty,
-            async_std::channel::TryRecvError::Closed => Self::Closed,
-        }
-    }
-}
-
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct RecvError;
-
-impl From<async_std::channel::RecvError> for RecvError{
-    fn from(_: async_std::channel::RecvError) -> Self { 
-        Self
-    }
-}
 
 impl std::error::Error for RecvError {}
 
