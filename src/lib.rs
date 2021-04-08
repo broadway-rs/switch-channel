@@ -3,7 +3,7 @@
 //! without having to worry about starvation.
 //! # Example
 //! ```
-//! use switch_channel::*;
+//! use switch_channel::async_channel::;
 //! use futures::{future, FutureExt};
 //! use async_std::task;
 //! 
@@ -85,10 +85,8 @@
 //! ```
 
 pub mod err;
-mod async_switch_channels;
-
-pub use async_switch_channels::{SwitchSender, SwitchReceiver, bounded, unbounded};
-
+pub mod async_channel;
+pub mod sync_channel;
 
 pub trait Switcher<'a, T>{
     type Output;
@@ -102,3 +100,6 @@ pub trait Switcher<'a, T>{
     fn switch_sub(&'a self, val: usize) -> Self::Output;
     fn switch_xor(&'a self, val: usize) -> Self::Output;
 }
+
+pub const PERMITTED: bool = true;
+pub const NOT_PERMITTED: bool = false;

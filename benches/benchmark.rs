@@ -1,6 +1,9 @@
 use criterion::*;
 use criterion::async_executor::AsyncStdExecutor;
-use switch_channel::*;
+#[cfg(feature = "async_std")]
+use switch_channel::{Switcher, err, async_channel::async_std::*};
+//#[cfg(feature = "async_std")]
+//use switch_channel::{Switcher, err, async_channel::tokio::*};
 use futures::{future, FutureExt};
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use async_std::task;
