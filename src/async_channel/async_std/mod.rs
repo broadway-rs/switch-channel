@@ -1,5 +1,6 @@
 mod switch_receiver;
 mod switch_sender;
+mod diswitchchannel;
 
 use std::convert::TryInto;
 use core::sync::atomic::AtomicUsize;
