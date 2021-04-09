@@ -3,7 +3,6 @@ use async_std::channel::Sender;
 use crate::{PERMITTED};
 use crate::{Switcher, err::send::{SendError, TrySendError}};
 
-#[derive(Clone)]
 pub struct SwitchSender<T, const N: usize, const P: bool>{
     pub(crate) count: Arc<AtomicUsize>,
     pub(crate) senders: [Sender<T>; N],
@@ -161,6 +160,17 @@ impl<T> From<async_std::channel::TrySendError<T>> for TrySendError<T>{
         match err{
             async_std::channel::TrySendError::Full(t) => Self::Full(t),
             async_std::channel::TrySendError::Closed(t) => Self::Closed(t),
+        }
+    }
+}
+
+impl<T, const N: usize, const P: bool> Clone for SwitchSender<T, N, P>{
+    fn clone(&self) -> Self{
+        use std::convert::TryInto;
+        let senders: Vec<Sender<T>> = self.senders.iter().map(|s| s.clone()).collect();
+        Self{
+            count: self.count.clone(),
+            senders: senders.try_into().unwrap(),
         }
     }
 }

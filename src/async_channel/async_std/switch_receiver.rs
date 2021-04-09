@@ -3,7 +3,6 @@ use async_std::channel::Receiver;
 use crate::{PERMITTED};
 use crate::{Switcher, err::recv::{RecvError, TryRecvError}};
 
-#[derive(Clone)]
 pub struct SwitchReceiver<T, const N: usize, const P: bool>{
     pub(crate) count: Arc<AtomicUsize>,
     pub(crate) receivers: [Receiver<T>; N],
@@ -207,5 +206,16 @@ impl From<async_std::channel::TryRecvError> for TryRecvError{
 impl From<async_std::channel::RecvError> for RecvError{
     fn from(_: async_std::channel::RecvError) -> Self { 
         Self
+    }
+}
+
+impl<T, const N: usize, const P: bool> Clone for SwitchReceiver<T, N, P>{
+    fn clone(&self) -> Self{
+        use std::convert::TryInto;
+        let receivers: Vec<Receiver<T>> = self.receivers.iter().map(|r| r.clone()).collect();
+        Self{
+            count: self.count.clone(),
+            receivers: receivers.try_into().unwrap(),
+        }
     }
 }

@@ -192,4 +192,12 @@ mod tests{
     async fn test_para_use_case() -> Result<(), Box<dyn std::error::Error>>{
         parallel_use_case(1000, 1000000000).await
     }
+
+    struct NoClone;
+
+    #[test]
+    fn clone_test(){
+        let (sender, receiver) = diunbounded::<NoClone>();
+        let sender2 = sender.clone();
+    }
 }
