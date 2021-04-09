@@ -5,11 +5,11 @@ pub type DiSwitchSender<T> = SwitchSender<T, 2, false>;
 pub type DiSwitchSyncSender<T> = SwitchSyncSender<T, 2, false>;
 pub type DiSwitchReceiver<T> = SwitchReceiver<T, 2, true>;
 
-pub fn dibounded<T, const N: usize, const S: bool, const P: bool>(cap: usize) -> (DiSwitchSyncSender<T>, DiSwitchReceiver<T>){
+pub fn dibounded<T>(cap: usize) -> (DiSwitchSyncSender<T>, DiSwitchReceiver<T>){
     bounded::<T, 2, false, true>(cap)
 }
 
-pub fn diunbounded<T, const N: usize, const S: bool, const P: bool>() -> (DiSwitchSender<T>, DiSwitchReceiver<T>){
+pub fn diunbounded<T>() -> (DiSwitchSender<T>, DiSwitchReceiver<T>){
     unbounded::<T, 2, false, true>()
 }
 
